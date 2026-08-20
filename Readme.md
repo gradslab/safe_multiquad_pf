@@ -1,31 +1,39 @@
 # Decentralized Safe Path Following for Multiple Quadrotors on Intersecting Paths
 
-<p align="center">
-  <img src="./docs/static/image/quad_animation.gif" alt="Four-quadrotor simulation animation" width="700">
-</p>
+Hamza Tariq and Adeel Akhtar, GRaDS Lab, New Jersey Institute of Technology.
 
-This repository contains the simulation code used to reproduce the main results for the paper on decentralized safe path following for multiple quadrotors on intersecting paths.
+**Project page: https://gradslab.github.io/safe_multiquad_pf/**
 
-The implementation simulates a team of quadrotors with:
-- transverse feedback linearization style path-following constraints,
-- roll and pitch safety constraints enforced through ECBF-style inequalities,
-- pairwise collision avoidance enforced through decentralized ECBF constraints,
-- a per-agent quadratic program solved at every time step.
+Several quadrotors each follow a fixed path in space, and the paths cross. Each vehicle must avoid
+the others, stay on its own path once it is there, and hold a fixed heading. The controller is one
+small quadratic program per vehicle whose four equalities are the chain assignments of transverse
+feedback linearization. Two of them govern motion across the path and one governs heading. Only the
+fourth, for motion along the path, is ever relaxed, by a single scalar slack. Substituting the
+equalities collapses the program to one scalar, so the input and an exact feasibility test are both
+available in closed form.
 
-The default example reproduces the four-quadrotor intersecting-path scenario and generates the main figures used in the paper.
+## What is here
 
-## Repository contents
+```
+docs/     the project page: animations, feasibility study, figures, parameter tables
+sim/      the simulation code behind the paper and the page, with its own README
+```
 
-The code currently lives in a Jupyter notebook and includes:
-- quadrotor dynamics simulation,
-- agent and environment classes,
-- decentralized QP controller,
-- pairwise safety constraints,
-- plotting utilities for trajectories, safety barriers, and tracking variables.
+`sim/README.md` gives the commands that regenerate every result, starting with the verification gate.
+The project page is built from those outputs by `sim/experiments/web/build_page.py`, and no number on
+it is written by hand.
 
-## Requirements
+The earlier notebook implementation, `tfl_cbf_multiquad_pf.ipynb`, is kept for reference. The results
+in the paper come from `sim/`.
 
-Install Python 3.10+ and the following packages:
+## Citation
 
-```bash
-pip install numpy cvxpy matplotlib
+```bibtex
+@unpublished{tariq_decentralized,
+  author = {Hamza Tariq and Adeel Akhtar},
+  title  = {Decentralized Safe Path Following for Multiple Quadrotors
+            on Intersecting Paths},
+  note   = {Under review},
+  year   = {2026}
+}
+```

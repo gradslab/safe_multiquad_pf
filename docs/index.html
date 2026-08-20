@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safe Path Following for Quadrotor Teams</title>
+<meta name="description" content="Simulation study for decentralized safe path following of multiple quadrotors on intersecting paths.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+<script>
+window.MathJax = {tex:{inlineMath:[["\\(","\\)"]]}, svg:{fontCache:"global"}};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <span class="mark">Safe path following &middot; quadrotor teams</span>
+  <span class="spacer"></span>
+  <nav>
+    <a href="#gallery">Animations</a>
+    <a href="#comparison">Comparison</a>
+    <a href="#feasibility">Feasibility</a>
+    <a href="#cost">Cost</a>
+    <a href="#reproduce">Reproduce</a>
+  </nav>
+  <button id="theme" class="btn" type="button" aria-label="Switch colour theme">Theme</button>
+</header>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-h">On this page</div>
+    <ol>
+      <li><a href="#gallery">Animations</a></li>
+      <li><a href="#scenarios">The two scenarios</a></li>
+      <li><a href="#comparison">Against two cascades</a></li>
+      <li><a href="#feasibility">Where feasibility holds</a></li>
+      <li><a href="#mechanism">How feasibility is lost</a></li>
+      <li><a href="#authority">Authority through an encounter</a></li>
+      <li><a href="#rate">Sampling rate</a></li>
+      <li><a href="#cost">Cost per step</a></li>
+      <li><a href="#split">Responsibility split</a></li>
+      <li><a href="#actuator">Actuator bounds</a></li>
+      <li><a href="#geometry">Path distance and conditioning</a></li>
+      <li><a href="#parameters">Parameters</a></li>
+      <li><a href="#reproduce">Reproducing this</a></li>
+    </ol>
+  </aside>
+  <main>
+
+  <section class="hero">
+    <div class="eyebrow">Supplementary simulation study</div>
+    <h1>Decentralized Safe Path Following for Multiple Quadrotors on Intersecting Paths</h1>
+    <p class="byline">Hamza Tariq and Adeel Akhtar
+      <span class="aff">GRaDS Lab, New Jersey Institute of Technology</span></p>
+    <p class="lede">The paper reports one four-quadrotor run. This page carries the rest of the
+      study: where the persistent-feasibility condition holds and where it stops holding, what the
+      failure looks like when it comes, what the sampling period costs, and what the safety step
+      costs per agent per step.</p>
+    <div class="buttons">
+      <a class="btn primary" href="https://github.com/gradslab/safe_multiquad_pf">Code and data</a>
+      <a class="btn" href="#feasibility">Feasibility study</a>
+      <a class="btn" href="#reproduce">Reproduce the figures</a>
+    </div>
+  </section>
+
+  <section class="sec" id="gallery">
+    <div class="sec-head">
+      <span class="sec-tag">Animations</span>
+      <h2>Four quadrotors, intersecting nonplanar circles</h2>
+      <p>Rendered in Drake from the logged state, at the speeds the paper reports, from a start one
+      metre off path. Watch the crossings: agents give way by changing speed along their own circles,
+      and none of them steps off to do it. The dotted rings are the assigned paths.</p>
+    </div>
+<div class="grid3"><div class="card media"><span class="pill neutral">isometric</span><div class="plate"><video src="anim/circles_proposed_iso.mp4" poster="anim/circles_proposed_iso.jpg" autoplay loop muted playsinline preload="metadata" aria-label="isometric"></video></div></div><div class="card media"><span class="pill neutral">from above</span><div class="plate"><video src="anim/circles_proposed_top.mp4" poster="anim/circles_proposed_top.jpg" autoplay loop muted playsinline preload="metadata" aria-label="from above"></video></div></div><div class="card media"><span class="pill neutral">side on</span><div class="plate"><video src="anim/circles_proposed_side.mp4" poster="anim/circles_proposed_side.jpg" autoplay loop muted playsinline preload="metadata" aria-label="side on"></video></div></div></div>
+    <div class="sec-head" style="margin-top:2.6rem">
+      <h2>Two quadrotors, intersecting nonplanar sinusoids</h2>
+      <p>A second geometry with a different crossing angle and a different arc-length map. Both
+      agents start one metre off path, converge, and then negotiate a crossing. The separation
+      requirement is 0.5&nbsp;m between centres, which is not much wider than the
+      airframe, so the two pass with little visible clearance while the constraint holds.</p>
+    </div>
+<div class="grid3"><div class="card media"><span class="pill neutral">isometric</span><div class="plate"><video src="anim/sine_proposed_iso.mp4" poster="anim/sine_proposed_iso.jpg" autoplay loop muted playsinline preload="metadata" aria-label="isometric"></video></div></div><div class="card media"><span class="pill neutral">from above</span><div class="plate"><video src="anim/sine_proposed_top.mp4" poster="anim/sine_proposed_top.jpg" autoplay loop muted playsinline preload="metadata" aria-label="from above"></video></div></div><div class="card media"><span class="pill neutral">side on</span><div class="plate"><video src="anim/sine_proposed_side.mp4" poster="anim/sine_proposed_side.jpg" autoplay loop muted playsinline preload="metadata" aria-label="side on"></video></div></div></div>
+    <div class="stats" style="margin-top:2.2rem">
+      <div class="stat"><div class="n">0.55 cm</div>
+        <div class="k">worst transverse output after convergence, against
+          78.6 cm and 1.62 m for the
+          two cascades</div></div>
+      <div class="stat"><div class="n">2.7&times;10<sup>-5</sup> deg</div>
+        <div class="k">worst heading error, the integration floor rather than a control error</div></div>
+      <div class="stat"><div class="n">1.1&times;10<sup>-13</sup></div>
+        <div class="k">largest residual on the three equalities that are never relaxed, whole run</div></div>
+      <div class="stat"><div class="n">83</div>
+        <div class="k">physics rollouts behind the feasibility map</div></div>
+    </div>
+  </section>
+
+  <section class="sec" id="scenarios">
+    <div class="sec-head">
+      <span class="sec-tag">Scenarios</span>
+      <h2>The two scenarios</h2>
+      <p>Both are flown on the Drake physics engine, with a floating rigid body per quadrotor and
+      quaternion attitude. The controller runs at 200&nbsp;Hz and holds its input between updates.
+      The circle scenario is the one the paper reports. The sinusoid scenario is a second geometry
+      with a different crossing angle and a different arc-length map.</p>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_space_circles.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Four quadrotors on intersecting circles.</b> Grey ribbons are the assigned paths. The proposed trajectory lies on its ribbon through every crossing. The two cascades leave theirs, and the geometric cascade leaves by the most.</figcaption>
+      </figure>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_space_sine.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Two quadrotors on intersecting sinusoids.</b> Both start one metre off the path and converge onto it. The views are cropped to the stretch that contains the two crossings.</figcaption>
+      </figure>
+  </section>
+
+  <section class="sec" id="comparison">
+    <div class="sec-head">
+      <span class="sec-tag">Comparison</span>
+      <h2>Against two cascades</h2>
+      <p>The first cascade replaces the hard transverse and heading equalities by a full-input
+      minimum-deviation filter on the same transverse feedback linearization. The second is the
+      geometric controller on SE(3) for quadrotors, with an acceleration-level barrier filter in
+      front of it. Barrier constraints, poles, separation distance, initial
+      conditions and control rate are identical across the three.</p>
+    </div>
+    <div class="grid3">
+      <div class="card media"><span class="pill ok">stays on path</span><h3>Proposed</h3>
+        <div class="plate"><video src="anim/circles_proposed_top.mp4" poster="anim/circles_proposed_top.jpg" autoplay loop muted playsinline preload="metadata" aria-label="proposed controller from above"></video></div>
+        <p>Safety is spent on speed alone.</p></div>
+      <div class="card media"><span class="pill warn">leaves path</span><h3>TFL + safety filter</h3>
+        <div class="plate"><video src="anim/circles_baseline_top.mp4" poster="anim/circles_baseline_top.jpg" autoplay loop muted playsinline preload="metadata" aria-label="TFL with a full-input safety filter"></video></div>
+        <p>Nothing pins the transverse rows, so the filter moves them.</p></div>
+      <div class="card media"><span class="pill bad">leaves path and heading</span>
+        <h3>Geometric + barrier filter</h3>
+        <div class="plate"><video src="anim/circles_se3_top.mp4" poster="anim/circles_se3_top.jpg" autoplay loop muted playsinline preload="metadata" aria-label="geometric controller with a barrier filter"></video></div>
+        <p>Avoidance is rebuilt into an attitude, which carries the heading with it.</p></div>
+    </div>
+    <p class="cap" style="margin:0 0 1.6rem">Seen from above, the view where leaving a path is
+      unmistakable. The same three controllers on the sinusoids:</p>
+    <div class="grid3">
+      <div class="card media"><span class="pill ok">stays on path</span><h3>Proposed</h3>
+        <div class="plate"><video src="anim/sine_proposed_top.mp4" poster="anim/sine_proposed_top.jpg" autoplay loop muted playsinline preload="metadata" aria-label="proposed controller on sinusoids, from above"></video></div></div>
+      <div class="card media"><span class="pill warn">leaves path</span><h3>TFL + safety filter</h3>
+        <div class="plate"><video src="anim/sine_baseline_top.mp4" poster="anim/sine_baseline_top.jpg" autoplay loop muted playsinline preload="metadata" aria-label="TFL with a safety filter on sinusoids, from above"></video></div></div>
+      <div class="card media"><span class="pill bad">leaves path and heading</span>
+        <h3>Geometric + barrier filter</h3>
+        <div class="plate"><video src="anim/sine_se3_top.mp4" poster="anim/sine_se3_top.jpg" autoplay loop muted playsinline preload="metadata" aria-label="geometric controller with a barrier filter on sinusoids, from above"></video></div></div>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_channels_circles.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Four quadrotors on intersecting circles.</b> Panel (c) barely separates the three, since all of them ride the separation boundary through the encounters. Panels (a) and (b) separate them by two orders of magnitude.</figcaption>
+      </figure>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_channels_sine.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Two quadrotors on intersecting sinusoids.</b> The ordering is the same on the second geometry, with smaller margins because there is one pair rather than six.</figcaption>
+      </figure>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>After convergence, worst over agents</th>
+          <th class="num">Proposed</th><th class="num">TFL + filter</th>
+          <th class="num">Geometric + filter</th></tr></thead>
+        <tbody>
+          <tr><td colspan="4"><b>Four quadrotors, intersecting circles</b>
+            (measured from t = 12.0&nbsp;s)</td></tr>
+          <tr><td>Transverse output |&xi;<sub>1</sub>| [cm]</td><td class="num best">0.55</td><td class="num">78.60</td><td class="num">161.87</td></tr>
+          <tr><td>Distance to the assigned path [cm]</td><td class="num best">0.24</td><td class="num">34.04</td><td class="num">67.52</td></tr>
+          <tr><td>Heading error [deg]</td><td class="num best">2.67e-05</td><td class="num">4.83e-01</td><td class="num">8.05e+00</td></tr>
+          <tr><td>Closest pair distance [m]</td><td class="num best">0.500</td><td class="num">0.500</td><td class="num">0.499</td></tr>
+          <tr><td colspan="4"><b>Two quadrotors, intersecting sinusoids</b>
+            (measured from t = 8.0&nbsp;s)</td></tr>
+          <tr><td>Distance to the assigned path [cm]</td><td class="num best">1.18</td><td class="num">3.07</td><td class="num">9.48</td></tr>
+          <tr><td>Heading error [deg]</td><td class="num best">9.10e-06</td><td class="num">5.02e-03</td><td class="num">3.56e-01</td></tr>
+          <tr><td>Closest pair distance [m]</td><td class="num">0.503</td><td class="num">0.506</td><td class="num best">0.515</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">Green marks the better value in each row. The first row is the quantity the paper
+      reports, the transverse output that Lemma 2 bounds the path distance with. The second is the
+      geometric distance itself. They separate the controllers by
+      143&times; and
+      295&times; on the first,
+      143&times; and
+      284&times; on the second. The paper quotes the
+      first row, with the geometric cascade written as 1.62&nbsp;m.
+      Separation is 0.5&nbsp;m.
+      The two cascades hold it on the sinusoids. On the circles the geometric cascade closes to
+      0.4989&nbsp;m, which is 1.1&nbsp;mm
+      inside the boundary at the sampled instants, while the proposed controller and the full-input
+      filter stay outside it.</p>
+  </section>
+
+  <section class="sec" id="feasibility">
+    <div class="sec-head">
+      <span class="sec-tag">Feasibility</span>
+      <h2>Where the feasibility condition holds</h2>
+      <p>Assumption 1 is a hypothesis, and the paper checks it at one operating point. Here it is
+      checked over a grid that runs well past that point, out to twice the desired speed and to
+      separation distances up to 1.2&nbsp;m. Each cell is a full
+      rollout, and the horizon is scaled with the desired speed so that every cell covers the same
+      path distance rather than the same wall-clock time. There is no fallback controller anywhere in
+      this study, by design, so a cell that loses feasibility simply stops at that instant.</p>
+      <p>A cell contains many crossings, so counting whole cells is a blunt measure: a rollout that
+      negotiates twenty encounters and loses feasibility on the twenty-first counts the same as one
+      that fails immediately. The natural unit is the encounter.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n">86%</div>
+        <div class="k">of pairwise encounters negotiated with the interval non-empty</div></div>
+      <div class="stat"><div class="n">196</div>
+        <div class="k">encounters cleared across 83 rollouts</div></div>
+      <div class="stat"><div class="n">31</div>
+        <div class="k">encounters where the certificate reported an empty interval</div></div>
+      <div class="stat"><div class="n">0</div>
+        <div class="k">collisions and path deviations, over the whole grid</div></div>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_feasibility_map.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>83 rollouts.</b> Green cells ran the full horizon. Orange cells stopped when the closed-form certificate reported an empty interval, and the label is how far into the horizon that happened. The cell the paper reports is outlined in black.</figcaption>
+      </figure>
+    <ul class="look">
+      <li>Read as whole cells, 32 of 48 sinusoid cells and
+        20 of 35 circle cells ran their full horizon. Read
+        as encounters, which is the unit the constraint acts on,
+        196 of 227 were negotiated.</li>
+      <li>No cell ended in a collision or a path deviation. Across all
+        83 rollouts the worst barrier value at any
+        sampled instant was -5.2&times;10<sup>-9</sup> m<sup>2</sup>, which puts the closest sampled approach
+        within 5 nanometres of the separation
+        sphere. What fails is the certificate, and it fails before safety does.</li>
+      <li>The boundary is not a simple speed threshold. Cells that stop are spread through the grid,
+        and the median stopped cell had already cleared
+        58 percent of its horizon on the sinusoids
+        and 54 percent on the circles.</li>
+    </ul>
+  </section>
+
+  <section class="sec" id="mechanism">
+    <div class="sec-head">
+      <span class="sec-tag">Mechanism</span>
+      <h2>How feasibility is lost</h2>
+      <p>Remark 3 predicts the mechanism, and one cell of the map shows it directly. A collision row
+      bounds the slack from above while its authority is positive. As that authority approaches zero
+      the bound it produces walks away, and when the authority changes sign the row flips to bounding
+      from below, which empties the interval in a single step.</p>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_mechanism.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>The last three seconds of one stopped cell.</b> Interval width is the quantity one would reach for as an early warning, and panel (c) shows why it is the wrong one. The width is still in the hundreds one sample before the interval is empty.</figcaption>
+      </figure>
+    <p class="prose">This is the argument for evaluating the certificate every step rather than
+      extrapolating a margin. The test costs one pass over N + 6 rows, so there is no reason to
+      approximate it.</p>
+  </section>
+
+  <section class="sec" id="authority">
+    <div class="sec-head">
+      <span class="sec-tag">Authority</span>
+      <h2>Authority through an encounter</h2>
+      <p>The same quantities on a run that does not stop. The collision authority still passes
+      through zero once per encounter, and nothing happens, because the row's offset has the sign
+      that keeps the interval non-empty across the crossing.</p>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_authority_circles.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Four quadrotors, intersecting circles.</b> Panel (b) is the slack the projection selects. The red bar marks the steps where the collision row is the binding constraint, which is where the agent is genuinely yielding.</figcaption>
+      </figure>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_authority_sine.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Two quadrotors, intersecting sinusoids.</b> One pair rather than six, so the collision row binds over a single long window instead of several short ones.</figcaption>
+      </figure>
+  </section>
+
+  <section class="sec" id="rate">
+    <div class="sec-head">
+      <span class="sec-tag">Sampled data</span>
+      <h2>What the sampling period costs</h2>
+      <p>The controller holds each input constant between updates, so the barrier conditions are
+      enforced on the sampled solution and not between samples. The paper says so and claims nothing
+      more. This is the empirical part of that statement, on the four-quadrotor scenario at
+      100 Hz, 200 Hz, 500 Hz, 1000 Hz, 2000 Hz.</p>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_rates.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Five rates, one scenario, everything else fixed.</b> Panel (b) is the worst sampled barrier value over each run, and panel (c) is the settled path error.</figcaption>
+      </figure>
+    <ul class="look">
+      <li>The worst sampled barrier value over all five rates is
+        1.1&times;10<sup>-7</sup> m<sup>2</sup>, so no rate in this range produced a sampled excursion past
+        the separation boundary.</li>
+      <li>This is evidence, not a guarantee. An intersample certificate needs the bound on the
+        barrier derivative over one period, which we do not claim.</li>
+    </ul>
+  </section>
+
+  <section class="sec" id="cost">
+    <div class="sec-head">
+      <span class="sec-tag">Cost</span>
+      <h2>Cost of the safety step</h2>
+      <p>The paper quotes one ratio. The measurement behind it separates two things that a single
+      number runs together: the projection against a numerical solve of the same program, and the
+      whole per-agent control step, which both controllers pay alike. OSQP is timed through its own
+      interface rather than through a modelling layer, so the comparison charges it for the solver
+      and nothing else.</p>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_bench.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>400 repetitions per team size.</b> Bands in panel (a) are the 5th to 95th percentile. Panel (c) is the spread of the projection alone.</figcaption>
+      </figure>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th class="num">Team size N</th><th class="num">Rows</th>
+          <th class="num">Projection [&micro;s]</th><th class="num">OSQP solve [&micro;s]</th>
+          <th class="num">Ratio</th></tr></thead>
+        <tbody><tr><td class="num">2</td><td class="num">8</td><td class="num">12.3</td><td class="num">22.2</td><td class="num">1.8&times;</td></tr><tr><td class="num">3</td><td class="num">9</td><td class="num">12.7</td><td class="num">24.4</td><td class="num">1.9&times;</td></tr><tr><td class="num">4</td><td class="num">10</td><td class="num">13.0</td><td class="num">25.0</td><td class="num">1.9&times;</td></tr><tr><td class="num">6</td><td class="num">12</td><td class="num">13.9</td><td class="num">27.5</td><td class="num">2.0&times;</td></tr><tr><td class="num">8</td><td class="num">14</td><td class="num">15.1</td><td class="num">112.7</td><td class="num">7.5&times;</td></tr><tr><td class="num">10</td><td class="num">16</td><td class="num">16.8</td><td class="num">80.4</td><td class="num">4.8&times;</td></tr><tr><td class="num">12</td><td class="num">18</td><td class="num">17.4</td><td class="num">236.0</td><td class="num">13.6&times;</td></tr><tr><td class="num">14</td><td class="num">20</td><td class="num">17.7</td><td class="num">33.4</td><td class="num">1.9&times;</td></tr><tr><td class="num">16</td><td class="num">22</td><td class="num">19.4</td><td class="num">476.0</td><td class="num">24.5&times;</td></tr></tbody>
+      </table>
+    </div>
+    <p class="cap">Median over 400 repetitions.
+      Apple M1,
+      8 cores, Python 3.12.2,
+      OSQP 1.1.3. The projection is
+      2.0 times faster than the solve at the median team size, and the
+      gap is not the whole story. The solve time depends on how many iterations the problem happens
+      to need, so it ranges from 1.8 to 24.5
+      times the projection across these team sizes, while the projection itself is a fixed number of
+      operations. Both controllers also pay the same per-agent cost for path geometry and row
+      assembly, which dominates this Python prototype and is the same code in both.</p>
+  </section>
+
+  <section class="sec" id="split">
+    <div class="sec-head">
+      <span class="sec-tag">Responsibility</span>
+      <h2>The responsibility split</h2>
+      <p>Remark 5 says that safety does not imply continued progress, and that a symmetric approach
+      can deadlock unless priority or scheduling logic rules it out. Here two agents arrive at a
+      crossing at the same speed on mirrored paths, which is that approach built on purpose. The
+      responsibility split is the only thing that changes between the three runs, and every split
+      keeps the pair sum at one, so the centralized condition is untouched.</p>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_weights.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>One symmetric encounter, three splits.</b> The distance-blended split engages as the pair closes. The committed split assigns right of way before the pair locks.</figcaption>
+      </figure>
+  </section>
+
+  <section class="sec" id="actuator">
+    <div class="sec-head">
+      <span class="sec-tag">Extension</span>
+      <h2>Actuator bounds</h2>
+      <p>Section IV-D argues that any constraint affine in the input reduces to an interval of the
+      same form, so actuator bounds add rows without changing the test. A box on the three torques is
+      two rows per bound, the thrust input enters the same way, and the certificate stays exact.
+      Tightening the box below the demand does not produce a solver failure: at 21 mN m the
+      certificate reports the box infeasible at the first step, before the vehicle moves.</p>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_actuator.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Three bounds against the unbounded run.</b> The interval narrows as the box tightens, the applied torque respects the bound, and the path error does not move. The bounds bind more often, which is the cost the paper names.</figcaption>
+      </figure>
+  </section>
+
+  <section class="sec" id="geometry">
+    <div class="sec-head">
+      <span class="sec-tag">Geometry</span>
+      <h2>Path distance and conditioning</h2>
+      <p>Two quantities the paper quotes as single numbers, shown as time series. The first is the
+      distance to the assigned path, which is the geometric quantity the transverse output bounds.
+      The second is the smallest singular value of the decoupling matrix, which is what regularity
+      of the transverse feedback linearization comes down to in practice.</p>
+    </div>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_pathdist_circles.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Four quadrotors, intersecting circles.</b> Panel (c) never approaches zero, so the decoupling matrix stays invertible over the whole tube the agents actually visit.</figcaption>
+      </figure>
+      <figure class="figblock">
+        <div class="plate"><img src="figs/W_pathdist_sine.png" alt="" loading="lazy"></div>
+        <figcaption class="cap"><b>Two quadrotors, intersecting sinusoids.</b> Same three quantities on the second geometry.</figcaption>
+      </figure>
+    <ul class="look">
+      <li>Worst transverse output after convergence, four agents: 0.55 cm,
+        against 78.6 cm for the full-input filter and
+        1.62 m for the geometric cascade. As a geometric distance
+        the proposed controller is 0.24 cm from its path.</li>
+      <li>Smallest singular value of the decoupling matrix over the run:
+        0.421.</li>
+      <li>Thrust margin above the positivity floor: 17.1 N.</li>
+    </ul>
+  </section>
+
+  <section class="sec" id="parameters">
+    <div class="sec-head">
+      <span class="sec-tag">Parameters</span>
+      <h2>Every parameter, for all three controllers</h2>
+      <p>The comparison is only worth reading if the three controllers were given the same problem.
+      These are the complete settings behind every figure on this page.</p>
+    </div>
+    <h3 style="margin:1.6rem 0 .7rem">Shared plant and scenario</h3><div class="tablewrap"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Mass m</td><td>1.923 kg</td></tr><tr><td>Inertia J</td><td>diag(1.152, 1.152, 2.18) &times; 10<sup>-2</sup> kg m<sup>2</sup></td></tr><tr><td>Gravity g</td><td>9.8 m/s<sup>2</sup></td></tr><tr><td>Control rate</td><td>200 Hz, zero-order hold</td></tr><tr><td>Integrator</td><td>Drake continuous plant, quaternion floating body</td></tr><tr><td>Separation d<sub>s</sub></td><td>0.5 m</td></tr><tr><td>Circle radius R</td><td>1.5 m</td></tr><tr><td>Circle centres</td><td>(0,0), (0,1), (1,0), (1,1) m</td></tr><tr><td>Height field</td><td>z = 1 + 0.25 sin(2&pi;x/3) m</td></tr><tr><td>Desired speeds, circles</td><td>&plusmn;0.63 and &plusmn;0.525 m/s</td></tr><tr><td>Sinusoid geometry</td><td>y = &plusmn;1.25 sin(0.5x), z = 1 + 0.25 sin(0.5x) m</td></tr><tr><td>Desired speeds, sinusoid</td><td>1.0 and 0.96 m/s</td></tr><tr><td>Start</td><td>1 m off path, level attitude, hover thrust</td></tr></tbody></table></div><h3 style="margin:1.6rem 0 .7rem">Proposed controller</h3><div class="tablewrap"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Transverse gains k<sub>&xi;</sub></td><td>200, 400, 90, 30</td></tr><tr><td>Altitude gains k<sub>&zeta;</sub></td><td>100, 200, 60, 20</td></tr><tr><td>Speed gains</td><td>triple pole at &minus;2: 8, 12, 6</td></tr><tr><td>Heading gains</td><td>10, 12</td></tr><tr><td>Cost weights</td><td>W = I<sub>4</sub>, P = 100</td></tr><tr><td>Collision barrier</td><td>quadruple real pole at &minus;3.75</td></tr><tr><td>Attitude barrier</td><td>double pole at &minus;10, margin &epsilon; = 0.1 rad</td></tr><tr><td>Thrust barrier</td><td>double pole at &minus;10, f<sub>min</sub> = 0.94 N</td></tr><tr><td>Speed barrier</td><td>triple pole at &minus;20, v<sub>max</sub> = 1 m/s</td></tr><tr><td>Responsibility</td><td>w<sub>ij</sub> = 1/2 unless stated</td></tr><tr><td>Solve</td><td>closed-form projection, no numerical solver in the loop</td></tr></tbody></table></div><h3 style="margin:1.6rem 0 .7rem">TFL with a full-input safety filter</h3><div class="tablewrap"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Nominal feedback</td><td>the same transverse feedback linearization, by inversion</td></tr><tr><td>Filter</td><td>min &#8214;&nu; &minus; &nu;<sub>TFL</sub>&#8214;<sup>2</sup> subject to the same barrier rows</td></tr><tr><td>Barrier rows</td><td>identical: attitude, thrust, collision, same poles and weights</td></tr><tr><td>Difference from proposed</td><td>the hard equality is dropped, and there is no slack</td></tr><tr><td>Solve</td><td>OSQP through cvxpy, eps 10<sup>-8</sup>, CLARABEL fallback</td></tr></tbody></table></div><h3 style="margin:1.6rem 0 .7rem">Geometric controller with a barrier filter</h3><div class="tablewrap"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Position gains</td><td>k<sub>x</sub> = 16 m, k<sub>v</sub> = 5.6 m</td></tr><tr><td>Attitude gains</td><td>k<sub>R</sub> = 8.81, k<sub>&Omega;</sub> = 2.54</td></tr><tr><td>Reference</td><td>the same path at the same physical speed</td></tr><tr><td>Filter</td><td>acceleration-level collision barrier, double pole at &minus;3.75</td></tr><tr><td>Separation</td><td>0.5 m, as above</td></tr></tbody></table></div>
+  </section>
+
+  <section class="sec" id="reproduce">
+    <div class="sec-head">
+      <span class="sec-tag">Reproduce</span>
+      <h2>Reproducing this</h2>
+      <p>The simulation code is in the repository under <code>sim/</code>. The verification gate runs
+      first and checks the controller algebra over several thousand random admissible states, so a
+      broken build fails before any scenario is flown.</p>
+    </div>
+<pre><code><span class="c"># set up</span>
+git clone https://github.com/gradslab/safe_multiquad_pf.git
+cd safe_multiquad_pf/sim
+pip install -r requirements.txt
+python3 tests/test_layer.py
+
+<span class="c"># the two scenarios</span>
+python3 experiments/run_circles.py --scenario circles --agents 4 --offpath --vscale 1.4 --tag _cs1p4
+python3 experiments/run_circles.py --scenario sine    --agents 2 --offpath
+
+<span class="c"># the two cascades, same scenario</span>
+python3 experiments/run_circles.py --scenario circles --agents 4 --offpath --vscale 1.4         --controller baseline --tag _cs1p4
+python3 experiments/run_circles.py --scenario circles --agents 4 --offpath --vscale 1.4         --controller se3 --tag _cs1p4
+
+<span class="c"># the studies on this page</span>
+python3 experiments/web/sweep.py --grid sine
+python3 experiments/web/sweep.py --grid circles
+python3 experiments/web/runs.py --study all
+python3 experiments/web/bench_solver.py
+python3 experiments/web/renders.py
+
+<span class="c"># figures, each gated before it is written</span>
+python3 experiments/web/figs_scenes.py
+python3 experiments/web/figs_core.py
+python3 experiments/web/figs_studies.py
+python3 experiments/web/page_numbers.py
+python3 experiments/web/build_page.py</code></pre>
+    <p class="prose">The animations need Drake with a VTK renderer:
+      <code>python3 experiments/web/renders.py</code> writes all fourteen, three camera angles per
+      controller.</p>
+  </section>
+
+  <section class="sec" id="cite">
+    <div class="sec-head">
+      <span class="sec-tag">Citation</span>
+      <h2>Citation</h2>
+    </div>
+<pre><code>@unpublished{tariq_decentralized,
+  author = {Hamza Tariq and Adeel Akhtar},
+  title  = {Decentralized Safe Path Following for Multiple Quadrotors
+            on Intersecting Paths},
+  note   = {Under review},
+  year   = {2026}
+}</code></pre>
+  </section>
+
+  <footer>
+    <div class="rulebar"></div>
+    <p>GRaDS Lab, New Jersey Institute of Technology.
+      Every figure on this page is generated by the scripts above and is checked for occlusion,
+      clipping and legibility before it is written.
+      <a href="https://github.com/gradslab/safe_multiquad_pf">Repository</a>.</p>
+  </footer>
+
+  </main>
+</div>
+<script src="assets/js/site.js"></script>
+</body>
+</html>

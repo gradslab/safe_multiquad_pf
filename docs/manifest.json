@@ -1,0 +1,159 @@
+{
+ "assets": [
+  {
+   "file": "figs/W_space_circles.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_space_sine.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_channels_circles.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_channels_sine.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_authority_circles.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_authority_sine.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_pathdist_circles.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_pathdist_sine.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_feasibility_map.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_mechanism.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_rates.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_bench.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_weights.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "figs/W_actuator.png",
+   "slot": "wide",
+   "issues": []
+  },
+  {
+   "file": "anim/circles_proposed_iso.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.24
+  },
+  {
+   "file": "anim/circles_proposed_top.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.19
+  },
+  {
+   "file": "anim/circles_proposed_side.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.19
+  },
+  {
+   "file": "anim/circles_baseline_iso.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.23
+  },
+  {
+   "file": "anim/circles_baseline_top.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.18
+  },
+  {
+   "file": "anim/circles_se3_iso.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.3
+  },
+  {
+   "file": "anim/circles_se3_top.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.23
+  },
+  {
+   "file": "anim/sine_proposed_iso.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.04
+  },
+  {
+   "file": "anim/sine_proposed_top.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.04
+  },
+  {
+   "file": "anim/sine_proposed_side.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.04
+  },
+  {
+   "file": "anim/sine_baseline_iso.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.04
+  },
+  {
+   "file": "anim/sine_baseline_top.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.04
+  },
+  {
+   "file": "anim/sine_se3_iso.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.05
+  },
+  {
+   "file": "anim/sine_se3_top.mp4",
+   "slot": "half",
+   "issues": [],
+   "MB": 0.05
+  }
+ ],
+ "failures": []
+}
