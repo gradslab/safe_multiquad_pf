@@ -1,12 +1,13 @@
-r"""
-V2 nominal run: N=4 nonplanar intersecting circles on the Drake physics engine (Spec 4, 5).
+r"""Closed-loop Drake rollouts for the paper's scenarios (circles N=4, sinusoids N=2).
 
-Reuses the V1 Drake plant pattern (one quaternion floating body per agent, continuous plant, gravity
--g e3; force x13*R[:,2], torque R*[tau]) but drives it with the V2 closed-form controller. The extended
-thrust states (x13,x14) are integrated inside the controller layer (Spec 0.1). Logs the seven mandated
-diagnostics (Spec 0.5) and writes an npz.
+One quaternion floating body per agent on a continuous Drake plant; the controller runs at the
+--rate zero-order hold and integrates its extended thrust states internally. --controller selects
+the paper's TFL-QP (proposed, closed-form solve), the TFL + safety-filter cascade (baseline), or
+the SE(3) + safety-filter cascade (se3). Writes a state log and a per-step diagnostic log to
+results/ (path error, transformed channels, slack and feasible interval, barrier values, equality
+residual, thrust).
 
-Usage: python3 v2/experiments/nominal/run_circles.py --tmax 20 --rate 250
+Usage: python3 experiments/run_circles.py --scenario circles --agents 4 --offpath --tmax 45 --rate 400
 """
 import argparse
 import os
@@ -91,7 +92,13 @@ class V2System(LeafSystem):
                 f_cmd, M_cmd, diag = s3b.step_se3(i, X12, self.se3, self.model,
                                                   context.get_time(), self.Rd_prev[i], self.dt)
                 self.Rd_prev[i] = diag["Rd"]
-                diag["q_star"] = self.qwarm[i]
+                # true distance-to-path for the SE(3) cascade (its own diag tracks the time
+                # reference, not the path): project onto gamma with a warm-started q*
+                _y = X14[i][6:9]
+                _qs = self.cfgs[i].path.q_star(_y, self.qwarm[i])
+                self.qwarm[i] = _qs
+                diag["q_star"] = _qs
+                diag["path_err"] = float(np.linalg.norm(_y - self.cfgs[i].path.sig(_qs, 0)))
                 self.last[i] = diag
                 new[i, 0] = f_cmd            # thrust is algebraic for SE(3): no integrators
                 new[i, 1] = 0.0
@@ -170,11 +177,11 @@ def main():
     ap.add_argument("--kt-scale", type=float, default=1.0, help="scale V1 transverse gains (gentler=<1)")
     ap.add_argument("--w-mode", choices=("symmetric", "blended", "priority"), default="symmetric",
                     help="collision responsibility: symmetric 1/2 or blended right-of-way")
-    ap.add_argument("--agents", type=int, default=4, choices=(2, 3, 4))
+    ap.add_argument("--agents", type=int, default=4, choices=(1, 2, 3, 4))
     ap.add_argument("--w-lead", type=float, default=0.45)
     ap.add_argument("--b-far", type=float, default=8.0)
     ap.add_argument("--controller", choices=("proposed", "baseline", "se3"), default="proposed")
-    ap.add_argument("--P", type=float, default=100.0, help="MINNORM slack weight; large keeps P/Q near 1")
+    ap.add_argument("--P", type=float, default=100.0, help="slack weight P; large keeps P/Q near 1")
     ap.add_argument("--vmax", type=float, default=1.0, help="speed-barrier limit (m/s), |v_des|<vmax")
     ap.add_argument("--lam-v", type=float, default=20.0, help="speed-barrier triple pole")
     ap.add_argument("--vdes", type=float, nargs="*", default=None, help="override desired speeds (m/s)")
@@ -207,7 +214,7 @@ def main():
             ssc.DS_SINE = args.ds
         cfgs = ssc.make_configs(names=names_all, lam_pair=args.lam_pair, lam_att=args.lam_att,
                                 w_mode=args.w_mode, w_lead=args.w_lead, b_far=args.b_far)
-        X0 = ssc.initial_states(names=names_all, offset_y=(1.0 if args.offpath else 0.0),
+        X0 = ssc.initial_states(names=names_all, offset_y=(0.5 if args.offpath else 0.0),
                                 offset_z=(-0.3 if args.offpath else 0.0))
         scen_tag = "sine"
     elif args.scenario == "three":
@@ -231,7 +238,7 @@ def main():
             c.gains = dict(c.gains)
             c.gains["k_xi"] = [args.kt_scale * v for v in c.gains["k_xi"]]
             c.gains["k_zeta"] = [args.kt_scale * v for v in c.gains["k_zeta"]]
-    for _k, _c in enumerate(cfgs):        # MINNORM: slack weight + speed-barrier data
+    for _k, _c in enumerate(cfgs):        # per-agent overrides
         _c.P = args.P; _c.v_max = args.vmax; _c.lam_v = (args.lam_v,) * 3
         if args.vdes: _c.v_des = float(args.vdes[_k % len(args.vdes)])
         if args.vscale != 1.0: _c.v_des *= args.vscale
@@ -241,13 +248,14 @@ def main():
 
     # t=0 separation check
     P0 = np.array([X0[n][6:9] for n in names])
-    dmin0 = min(np.linalg.norm(P0[i] - P0[j]) for i, j in itertools.combinations(range(len(names)), 2))
+    dmin0 = min((np.linalg.norm(P0[i] - P0[j])
+                 for i, j in itertools.combinations(range(len(names)), 2)), default=np.inf)
     print(f"t=0 min pairwise distance = {dmin0:.3f} m (d_s={cfgs[0].ds})")
 
     diagram, plant, indices, sysv = build(cfgs, model, dt, mode=args.controller)
     sim = Simulator(diagram); ctx = sim.get_mutable_context()
     set_initial(plant, cfgs, X0, ctx); sim.Initialize()
-    print(f"V2 N={len(cfgs)} circles | rate={args.rate}Hz dt={dt:.4f} | v_des(m/s)="
+    print(f"N={len(cfgs)} | rate={args.rate}Hz dt={dt:.4f} | v_des(m/s)="
           f"{[round(c.v_des,3) for c in cfgs]}")
 
     log = {i: [] for i in range(len(cfgs))}
@@ -304,28 +312,21 @@ def main():
               f"max|delta*|={np.nanmax(np.abs(dstar[w])) if np.any(~np.isnan(dstar[w])) else np.nan:.2e} | "
               f"min eta2={np.nanmin(sgn*e2)*sgn:+.3f} "
               f"[{reversal}] | sign-changes={nsign}")
-    # thrust-CBF engagement: how often the thrust row (index 4) is the binding constraint, and margins
-    thr_binds = 0; thr_steps = 0
-    min_margin = np.inf; min_psi_f = np.inf
+    # Assumption 1 (paper): collective thrust must stay positive along the closed loop
+    min_x13 = np.inf
     for i in range(len(cfgs)):
         for d in diaglog[i]:
-            if not d:
-                continue
-            thr_steps += 1
-            if 4 in d.get("active", []):
-                thr_binds += 1
-            min_margin = min(min_margin, d.get("x13_margin", np.inf))
-            min_psi_f = min(min_psi_f, d.get("thrust_Psi1", np.inf))
-    print(f"  thrust CBF: binds {thr_binds}/{thr_steps} agent-steps "
-          f"({100.0*thr_binds/max(thr_steps,1):.2f}%) | min(x13-fmin)={min_margin:.2f} N | "
-          f"min Psi_f1={min_psi_f:.2f}")
+            if d:
+                min_x13 = min(min_x13, d.get("x13", np.inf))
+    print(f"  Assumption 1: min thrust x13 = {min_x13:.2f} N "
+          f"({'holds (>0)' if min_x13 > 0 else 'VIOLATED'})")
 
     # collision safety
     minB = np.inf
     for i, j in itertools.combinations(range(len(cfgs)), 2):
         d2 = np.sum((Ss[names[i]][:, 6:9] - Ss[names[j]][:, 6:9]) ** 2, axis=1)
         minB = min(minB, (d2 - cfgs[0].ds ** 2).min())
-    verdict = "collision-free" if minB >= 0 else "VIOLATION"
+    verdict = "collision-free" if minB >= 0 else ("n/a (N=1)" if len(cfgs) == 1 else "VIOLATION")
     print(f"  min pairwise barrier h = {minB:+.4f} m^2 -> {verdict}")
     print(f"  completed {len(tarr)} steps to t={tarr[-1]:.2f}s "
           f"({'INFEASIBLE' if sysv.infeasible else 'ran to tmax'})")
@@ -354,8 +355,8 @@ def main():
         return out
     for i, n in enumerate(names):
         for key in ("path_err", "eta2", "sigma_min_D", "sigma_min_Jgamma", "delta_star", "delta_lo",
-                    "delta_hi", "width", "obj", "eq_resid", "x13_margin", "thrust_Psi1", "n_active",
-                    "delta_hat", "pWp_over_Q", "P_over_Q", "abar_thrust", "traj_err", "du"):
+                    "delta_hi", "width", "obj", "eq_resid", "x13", "n_active",
+                    "delta_hat", "pWp_over_Q", "P_over_Q", "traj_err", "du"):
             diag_out[f"{n}_{key}"] = scal(i, key)
         diag_out[f"{n}_feasible"] = np.array([bool(d.get("feasible", False)) if d else False
                                               for d in diaglog[i]])
@@ -374,8 +375,7 @@ def main():
             if d.get("collisions"):
                 cpsi[k] = np.min([c["Psi"] for c in d["collisions"]], axis=0)
         diag_out[f"{n}_att_h"] = att_h; diag_out[f"{n}_att_Psi1"] = att_p
-        for key, w in (("speed_h", 2), ("speed_Psi1", 2), ("speed_Psi2", 2),
-                       ("abar_speed", 2), ("abar_att", 4)):
+        for key, w in (("abar_att", 4),):
             arr = np.full((len(diaglog[i]), w), np.nan)
             for k, d in enumerate(diaglog[i]):
                 if d and d.get(key) is not None: arr[k, :] = d[key]

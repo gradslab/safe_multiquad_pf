@@ -83,7 +83,7 @@ def collision_row(xi, xj, Vi, Vj, Bqi, ds, lams, w_ij):
             "dist": float(np.linalg.norm(r)), "name": "collision"}
 
 
-# --------------------------------------------------------------------- speed (new in MINNORM v2)
+# --------------------------------------------------------------------- speed (optional, unused)
 def speed_rows(eta, L4_beta1, D_row3, v_max, lam_v):
     """Two one-sided speed barriers h_v^{i,st} = v_max - st*eta2, relative degree THREE.
 

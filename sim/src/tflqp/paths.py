@@ -34,7 +34,8 @@ class Path:
     transverse function of position (x,y,z); if omitted a normal-framing default is built.
     """
 
-    def __init__(self, name, sigma_expr, q, closed=False, period=None, s_expr=None, xyz=None):
+    def __init__(self, name, sigma_expr, q, closed=False, period=None, s_expr=None, xyz=None,
+                 beta1_expr=None):
         self.name = name
         self.q = q
         self.closed = closed
@@ -57,6 +58,23 @@ class Path:
             s_expr = self._default_transverse()
         self.s_sym = sp.Matrix(s_expr)
         self._build_s_derivs()
+        # ---- paper phase output beta1 (trimmed_proofread paper, Sec. II-C / Sec. VI) ----
+        # If beta1_expr (a symbolic scalar in x,y,z) is given, the phase output is that explicit
+        # chart of the nearest-point coordinate (the paper's Sec.-VI atan2 for circles) and its
+        # derivative tensors come from sympy. Otherwise the phase output is the nearest-point
+        # parameter q*(y) itself (the paper's varpi) via qstar_derivs. Either way beta1 is the
+        # PATH-COORDINATE, not arc length: eta2 = dbeta1 . v_q is the path-coordinate rate
+        # (rad/s for circles, x-rate for the sinusoids).
+        self.beta1_sym = beta1_expr
+        if beta1_expr is not None:
+            b1 = sp.Matrix([beta1_expr])
+            x_, y_, z_ = self.xyz
+            self._b1_fn = sp.lambdify((x_, y_, z_), beta1_expr, "numpy")
+            self._Db1_fn = sp.lambdify((x_, y_, z_), b1.jacobian(sp.Matrix([x_, y_, z_])), "numpy")
+            var = [x_, y_, z_]
+            self._D2b1_fn = self._make_tensor_fn(b1, var, 2)
+            self._D3b1_fn = self._make_tensor_fn(b1, var, 3)
+            self._D4b1_fn = self._make_tensor_fn(b1, var, 4)
 
     # --- sigma_tilde(q) and derivatives, as (3,) arrays ---
     def sig(self, qval, order=0):
@@ -218,6 +236,29 @@ class Path:
                         a4[i, j, k, l] = -(Gq_l * a3[i, j, k] + rest) / Gq
         return a1, a2, a3, a4
 
+    # -----------------------------------------------------------------------
+    # Paper phase output beta1 (value + derivative tensors)
+    # -----------------------------------------------------------------------
+    def beta1_val(self, y, qstar):
+        """Value of the paper's phase output beta1 at position y (qstar = warm-started projection)."""
+        if self.beta1_sym is not None:
+            return float(self._b1_fn(*[float(c) for c in y]))
+        return float(qstar)
+
+    def beta1_derivs(self, y, qstar):
+        """(d, D2, D3, D4) tensors of beta1, shapes (3,),(3,3),(3,3,3),(3,3,3,3).
+
+        Explicit chart (e.g. atan2 for circles): straight sympy tensors of beta1_expr.
+        Default: the nearest-point parameter q*(y) via implicit differentiation (qstar_derivs)."""
+        if self.beta1_sym is not None:
+            yv = [float(c) for c in y]
+            d1 = np.asarray(self._Db1_fn(*yv), dtype=float).reshape(3)
+            d2 = self._D2b1_fn(*yv).reshape(3, 3)
+            d3 = self._D3b1_fn(*yv).reshape(3, 3, 3)
+            d4 = self._D4b1_fn(*yv).reshape(3, 3, 3, 3)
+            return d1, d2, d3, d4
+        return self.qstar_derivs(y, qstar)
+
     def phase_derivs(self, y, qstar):
         """Return (dtheta, D2theta, D3theta, D4theta), shapes (3,),(3,3),(3,3,3),(3,3,3,3).
 
@@ -266,7 +307,10 @@ def lifted_circle(name, cx, cy, R=1.5, z_amp=0.25, z_omega=2 * np.pi / 3.0, z0=1
     x, y, z = sp.symbols("x y z", real=True)
     zdes_xyz = z0 + z_amp * sp.sin(z_omega * x)
     s_expr = [(x - cx) ** 2 + (y - cy) ** 2 - R ** 2, z - zdes_xyz]
-    return Path(name, sigma, q, closed=True, period=2 * np.pi, s_expr=s_expr, xyz=(x, y, z))
+    # paper Sec. VI: beta1 = atan2(y-cy, x-cx), the angle chart of the nearest-point coordinate
+    beta1 = sp.atan2(y - cy, x - cx)
+    return Path(name, sigma, q, closed=True, period=2 * np.pi, s_expr=s_expr, xyz=(x, y, z),
+                beta1_expr=beta1)
 
 
 def mirrored_sine(name, sign=+1.0, A=5.0, w=0.25, z_amp=0.5, z_omega=0.25, z0=1.0, x_shift=0.0):

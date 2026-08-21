@@ -3,7 +3,7 @@ V2 closed-form scalar optimizer (v9 Eqs. (40)-(45), Prop. 9). No numerical QP so
 
 Reduced problem after substituting nu = nu_TFL + p*delta (Eq. 40):
   minimize  1/2 Q (delta - dhat)^2      (Q = p^T W p + P > 0)
-  The MINNORM cost 1/2||nu||_W^2 + 1/2 P delta^2 makes the unconstrained minimizer
+  The min-norm cost 1/2||nu||_W^2 + 1/2 P delta^2 makes the unconstrained minimizer
       dhat = -(p^T W nu_0)/Q                          (tex: eq:reduced_coefficients)
   and NOT zero. dhat -> 0 as P -> infinity, recovering the old nominal-deviation behaviour.
   s.t.      abar_k delta <= bbar_k ,   abar = -A p,  bbar = b + A nu_TFL      (Eq. 42)

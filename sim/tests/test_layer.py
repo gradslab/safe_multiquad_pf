@@ -1,4 +1,5 @@
-"""MINNORM v2 verification gate (plan Sec. 3 item 2 + the Lemma-6 closed forms).
+"""Controller-algebra verification gate: slack direction, row authorities, and the
+reduced-QP coefficients over thousands of random admissible states.
 Signs are in this repo's z-up convention; the tex is z-down, so p_1, abar_f, abar_1, abar_2 flip."""
 import sys, os, numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "tflqp"))
@@ -55,7 +56,7 @@ def run(n=4000, seed=0, verbose=True):
            "abar_f":"abar_f = -p_1","abar_1":"abar_1^{i,s} = s p_tau1/Ix",
            "abar_2":"abar_2^{i,s} = s p_tau2/(Iy cos phi)","abar_v":"abar_v^{i,s} = s exactly   [frame-inv]",
            "abar_ij":"abar_ij = -2<x_ij,w>       [frame-inv]","slack_dir":"slack perturbs ONLY row 3 of D nu = v",
-           "dhat":"dhat = -(p^T W nu_0)/Q    [MINNORM]"}
+           "dhat":"dhat = -(p^T W nu_0)/Q"}
     allok = True
     if verbose: print(f"verified over {ok_n} random admissible states\n")
     for k in keys:

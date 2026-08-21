@@ -50,8 +50,7 @@ def step_baseline(i, X14, kin, cfgs, model, qwarm):
     cfg = cfgs[i]; x = X14[i]; Vi, Bqi = kin[i]
     R = tfl.assemble(x, cfg.path, model, cfg.gains, cfg.v_des, cfg.psi_des, qwarm[i])
     la = cfg.lam_att
-    rows = bar.attitude_rows(x, model, cfg.eps, la, la)
-    rows.append(bar.thrust_row(x, cfg.fmin, cfg.lam_f[0], cfg.lam_f[1]))
+    rows = bar.attitude_rows(x, model, cfg.eps, la, la)   # paper stack: 4 attitude + (N-1) collision
     lam4 = [cfg.lam_pair] * 4
     coll = []
     for j in range(len(X14)):
@@ -66,7 +65,7 @@ def step_baseline(i, X14, kin, cfgs, model, qwarm):
     diag = {"name": cfg.name, "sigma_min_D": R.sigma_min_D, "eta2": R.eta2,
             "xi": R.xi, "zeta": R.zeta, "eta": R.eta, "mu": R.mu,
             "path_err": float(np.linalg.norm(y - cfg.path.sig(R.q_star, 0))),
-            "x13_margin": x[12] - cfg.fmin, "thrust_Psi1": rows[4]["Psi1"],
+            "x13": float(x[12]),
             "q_star": R.q_star, "nu_tfl": R.nu_tfl.copy(),
             "sigma_min_Jgamma": float(np.linalg.svd(R.J_gamma, compute_uv=False)[-1]),
             "collisions": [{"j": j, "dist": cr["dist"], "Psi": cr["Psi"], "c_ij": cr["c_ij"]}

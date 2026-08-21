@@ -16,17 +16,22 @@ from controller import AgentConfig
 import scenario_circles as circ    # reuse default_gains, M_HOVER
 
 M_HOVER = circ.M_HOVER
-# Compact sine (smaller amplitude, higher frequency) so the scene fits a tight zoomed camera with both
-# drones + path in frame. Crossings (sin(w x)=0) at x = 0, π/w=6.28, 2π/w=12.57 ...
-# Compact but SAME curvature (A·w²=0.31) as the validated A=5,w=0.25 case, so the attitude barrier is not
-# over-stressed: scale A ~ 1/w². Crossings (sin(w x)=0) at x = 0, π/w=6.28, 12.57.
-A_SINE, W_SINE = 1.25, 0.5
-Z_AMP, Z_OMEGA, Z0 = 0.25, 0.5, 1.0
-DS_SINE = 0.5           # same as the circle scenario
+# Paper (trimmed_proofread) Sec. VI: mirrored sinusoids y = +-5 sin(0.25 x), lifted onto the same
+# height field z_des(x) = 1.0 + 0.5 sin(0.25 x), d_s = 0.5. beta1 is the nearest-point coordinate
+# (q = x on the path), so v_des is the path-coordinate rate; the values
+# (0.3, 0.25) apply. Crossings (sin(0.25 x) = 0) at x = 0, 4pi = 12.57, ...
+A_SINE, W_SINE = 5.0, 0.25
+Z_AMP, Z_OMEGA, Z0 = 0.25, 2*np.pi/3, 1.0   # same height field as the circles
+DS_SINE = 0.8           # reported configuration
 SIGN = {"quad_A": +1.0, "quad_B": -1.0}
-V_DES = {"quad_A": 1.0, "quad_B": 0.96}          # fast + small asymmetry (the validated clean dynamic): the
-#                                                  encounter is brief so A just slows to yield, no deep back-up
-X0_START = {"quad_A": 2.0, "quad_B": 2.0}        # mirror start -> synchronized crossing at x=6.28 (d_s met)
+V_DES = {"quad_A": 0.9, "quad_B": 0.75}          # desired x-rates [m/s]
+X0_START = {"quad_A": -16.2, "quad_B": -13.6}
+# Long run-up so BOTH agents are fully converged before the encounter:
+# A crosses x=0 at 20.0 s, B at 21.7 s. The FASTER agent (A, 0.3) leads; B follows 1.7 s later and yields
+# briefly (eta2 dips to ~+0.01, no reversal); closest approach grazes d_s by ~4 mm (min h ~ 0.004).
+# Do NOT make the arrivals simultaneous: the exactly-symmetric configuration is the deadlock that
+# strict feasibility (paper Assumption 2) excludes, and a slower-agent-leads stagger forces the
+# follower to brake so hard that the attitude rows conflict with the collision row (infeasible).
 NAMES = ("quad_A", "quad_B")
 
 
@@ -54,10 +59,10 @@ def initial_states(names=NAMES, offset_y=0.0, offset_z=0.0):
     X = {}
     for n in names:
         pth = make_path(n); q0 = X0_START[n]
-        pos = pth.sig(q0, 0).copy(); tan = pth.sig(q0, 1); tan = tan / np.linalg.norm(tan)
+        pos = pth.sig(q0, 0).copy()
         x = np.zeros(14)
         x[6:9] = pos + np.array([0.0, offset_y * SIGN[n], offset_z])
-        x[9:12] = V_DES[n] * tan
+        x[9:12] = V_DES[n] * pth.sig(q0, 1)      # qdot * dsigma/dq (v_des is the x-rate)
         x[12] = M_HOVER
         X[n] = x
     return X

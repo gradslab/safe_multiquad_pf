@@ -1,14 +1,13 @@
-r"""
-V2 top-level decentralized controller (v9 Sec. IV). Per agent per step:
-  1. assemble nominal TFL (D, nu_TFL, p, transformed states, sigma_min(D))          # tfl.assemble
-  2. build the N+4 inequality rows: 4 attitude (Eq. 33) + 1 thrust (Eq. 34)
-     + (N-1) collision (Eq. 39)                                                       # barriers.*
-  3. reduce to the scalar QP and solve in closed form (Eqs. 40-45)                    # optimizer
-Returns nu* (or an INFEASIBLE verdict, no fallback -- Remark 3) plus the seven paper-mandated
-diagnostics (Spec 0.5): path error, eta2 (m/s), min distance + Psi_ij,k, x13-fmin + Psi_f1, the
-feasible interval + width, delta* (m/s^4), sigma_min(D).
+r"""Top-level decentralized controller (paper Sec. IV). Per agent per step:
+  1. assemble the nominal TFL data (D, v, nu_TFL, slack direction p)                 # tfl.assemble
+  2. build the paper's N+3 inequality rows: 4 one-sided attitude ECBFs + (N-1)
+     pairwise collision ECBFs with w = 1/2                                            # barriers.*
+  3. reduce to the scalar QP in delta and solve by the closed-form clipping rule
+     of the paper's Remark 2                                                          # optimizer
+Returns nu* (or an INFEASIBLE verdict, no fallback) plus per-step diagnostics: path error, eta2,
+barrier values, the feasible interval and width, delta*, equality residual, thrust, sigma_min(D).
 
-No numerical QP solver, no clipping/saturation, no controller-specific hacks (Spec 3.C).
+No numerical QP solver in the loop, no clipping/saturation, no controller-specific hacks.
 """
 
 import numpy as np
@@ -84,24 +83,10 @@ def step(i, X14, kin, cfgs, model, qwarm, eps_a=1e-9):
     # 1. nominal TFL
     R = tfl.assemble(x, cfg.path, model, cfg.gains, cfg.v_des, cfg.psi_des, qwarm[i])
 
-    # 2. rows: attitude (4) + thrust (1) + speed (2) + collision (N-1)  ->  N+6 total
+    # 2. rows: attitude (4) + collision (N-1)  ->  N+3 total (paper eq. (15c): A^i has N+3 rows)
     rows = []
     la = cfg.lam_att
     rows += bar.attitude_rows(x, model, cfg.eps, la, la)
-    rows.append(bar.thrust_row(x, cfg.fmin, cfg.lam_f[0], cfg.lam_f[1]))
-    rows += bar.speed_rows(R.eta, R.L4_beta1, R.D[2, :], cfg.v_max, cfg.lam_v)
-    # optional actuator box, the extension of Sec. IV-D: a bound affine in nu reduces to an interval
-    # constraint of exactly the same form as every barrier row, so the closed-form test is unchanged.
-    n_box = 0
-    for k, lim in ((0, getattr(cfg, "ud_max", None)), (1, getattr(cfg, "tau_max", None)),
-                   (2, getattr(cfg, "tau_max", None)), (3, getattr(cfg, "tau_max", None))):
-        if lim is None:
-            continue
-        e = np.zeros(4); e[k] = 1.0
-        rows.append({"a": e.copy(), "b": float(lim), "name": f"box{k}+", "h": np.nan,
-                     "Psi1": np.nan})
-        rows.append({"a": -e, "b": float(lim), "name": f"box{k}-", "h": np.nan, "Psi1": np.nan})
-        n_box += 2
 
     lam4 = [cfg.lam_pair] * 4
     coll = []
@@ -128,22 +113,16 @@ def step(i, X14, kin, cfgs, model, qwarm, eps_a=1e-9):
         "name": cfg.name,
         "sigma_min_D": R.sigma_min_D,           # (vii)
         "n_rows": len(rows),
-        "abar_speed": [float(-r["a"] @ R.p) for r in rows if r["name"].startswith("speed")],
         "abar_att": [float(-rows[k]["a"] @ R.p) for k in range(4)],          # roll/pitch authorities
-        "abar_thrust": float(-rows[4]["a"] @ R.p),                            # = -p_1
         "abar_coll": [float(-cr["a"] @ R.p) for _, cr in coll],               # = -2<x_ij, w>
-        "speed_h": [float(r["h"]) for r in rows if r["name"].startswith("speed")],
-        "speed_Psi1": [float(r["Psi1"]) for r in rows if r["name"].startswith("speed")],
-        "speed_Psi2": [float(r["Psi2"]) for r in rows if r["name"].startswith("speed")],
         "delta_hat": sol.get("delta_hat"), "pWp_over_Q": sol.get("pWp_over_Q"),
         "P_over_Q": sol.get("P_over_Q"),
         "eta2": R.eta2,                          # (ii) m/s
         "xi": R.xi, "zeta": R.zeta, "eta": R.eta, "mu": R.mu,
         "path_err": float(np.linalg.norm(y - cfg.path.sig(R.q_star, 0))),  # (i) dist(x_q, gamma)
         "s_val": (R.xi[0], R.zeta[0]),           # (i) transverse errors alpha1, alpha2
-        "x13_margin": x[12] - cfg.fmin,          # (iv)
-        "thrust_Psi1": rows[4]["Psi1"],
-        "delta_star": sol.get("delta_star"),     # (vi) m/s^4
+        "x13": float(x[12]),                     # thrust (Assumption 1: must stay > 0)
+        "delta_star": sol.get("delta_star"),     # (vi)
         "delta_lo": sol["delta_lo"], "delta_hi": sol["delta_hi"], "width": sol["width"],  # (v)
         "feasible": sol["feasible"],
         "events": sol["events"],
@@ -155,15 +134,14 @@ def step(i, X14, kin, cfgs, model, qwarm, eps_a=1e-9):
         "nu_tfl": R.nu_tfl.copy(),               # nominal TFL input
         "sigma_min_Jgamma": float(np.linalg.svd(R.J_gamma, compute_uv=False)[-1]),
         "n_active": len(sol["active"]),          # active-row count per step
-        "n_box": n_box,
-        "abar_box": [float(-rows[7 + k]["a"] @ R.p) for k in range(n_box)],
     }
     if sol["feasible"]:
         nu = sol["nu_star"]
         # verify hard rows exactly (Spec 0.5): D nu - v - E delta = 0
         resid = R.D @ nu - R.v - tfl.E_SEL * sol["delta_star"]
         diag["eq_resid"] = float(np.max(np.abs(resid[[0, 1, 3]])))  # rows 1,2,4 hard
-        diag["obj"] = 0.5 * float((nu - R.nu_tfl) @ cfg.W @ (nu - R.nu_tfl)) + 0.5 * cfg.P * sol["delta_star"] ** 2
+        # paper objective (15a): (1/2)||nu||_W^2 + (1/2) P delta^2
+        diag["obj"] = 0.5 * float(nu @ cfg.W @ nu) + 0.5 * cfg.P * sol["delta_star"] ** 2
         diag["nu"] = nu.copy()                   # applied input
         return nu, diag
     diag["eq_resid"] = np.nan; diag["obj"] = np.nan; diag["nu"] = np.full(4, np.nan)

@@ -14,14 +14,12 @@ from controller import AgentConfig
 M_HOVER = 1.923 * 9.8
 
 CENTERS = {"quad_A": (0.0, 0.0), "quad_B": (0.0, 1.0), "quad_C": (1.0, 0.0), "quad_D": (1.0, 1.0)}
-# V1 angular rates (rad/s) -> physical m/s via R=1.5 (mean); signs preserved (paper Sec. V, A7)
 V1_OMEGA = {"quad_A": 0.3, "quad_B": -0.25, "quad_C": 0.25, "quad_D": -0.3}
 R = 1.5
-# Tuned N=4 demo (searched): DISTINCT physical speeds (m/s) so phases drift apart -> staggered
-# PAIRWISE encounters (no equal-magnitude phase-lock -> no deadlock), and phases spread 0/90/180/270
-# so agents start well separated. Feasible 60s+ with many 2-agent interactions.
-# V1-faithful physical speeds: R * V1_OMEGA (m/s), for apples-to-apples comparison with V1's N=4 run.
-V_DES = {"quad_A": R * 0.3, "quad_B": -R * 0.25, "quad_C": R * 0.25, "quad_D": -R * 0.3}
+# Paper (trimmed_proofread) Sec. VI: beta1 = atan2 => eta2 is the ANGULAR rate, and
+# v_des = (0.3, -0.25, 0.25, -0.3) rad/s directly. Altitude field z_des(x) = 1.0 + 0.5 sin(0.25 x).
+V_DES = {"quad_A": 0.45, "quad_B": -0.375, "quad_C": 0.375, "quad_D": -0.45}   # rad/s (final: 1.5x V1)
+Z_AMP, Z_OMEGA, Z0 = 0.25, 2*np.pi/3, 1.0             # z_des(x) = 1.0 + 0.25 sin(2 pi x/3): two climbs and dives per circle
 # Outer-corner phases: each agent starts on the side of its circle AWAY from the square centre
 # (0.5,0.5), giving ~3.1 m pairwise separation at t=0 (on-path; V1's 2m off-path is infeasible w/o fallback).
 Q0 = {"quad_A": 5 * np.pi / 4, "quad_B": 3 * np.pi / 4, "quad_C": 7 * np.pi / 4, "quad_D": np.pi / 4}
@@ -54,7 +52,7 @@ def make_configs(names=("quad_A", "quad_B", "quad_C", "quad_D"), fmin=None, lam_
     cfgs = []
     for k, n in enumerate(names):
         cx, cy = CENTERS[n]
-        path = P.lifted_circle(n, cx, cy, R=R)
+        path = P.lifted_circle(n, cx, cy, R=R, z_amp=Z_AMP, z_omega=Z_OMEGA, z0=Z0)
         v_des = V_DES[n]                            # tuned distinct physical speed (m/s)
         cfgs.append(AgentConfig(n, path, v_des=v_des, psi_des=0.0, gains=gains, idx=k,
                                 fmin=fmin, ds=0.5, lam_att=lam_att, lam_pair=lam_pair,
@@ -69,12 +67,11 @@ def initial_states(names=("quad_A", "quad_B", "quad_C", "quad_D")):
     X = {}
     for n in names:
         cx, cy = CENTERS[n]
-        path = P.lifted_circle(n, cx, cy, R=R)
+        path = P.lifted_circle(n, cx, cy, R=R, z_amp=Z_AMP, z_omega=Z_OMEGA, z0=Z0)
         q0 = Q0[n]
         pos = path.sig(q0, 0)
-        tan = path.sig(q0, 1); tan = tan / np.linalg.norm(tan)
         v_des = V_DES[n]
-        vel = v_des * tan
+        vel = v_des * path.sig(q0, 1)        # qdot * dsigma/dq (v_des is the angle rate)
         x = np.zeros(14)
         x[6:9] = pos
         x[9:12] = vel
@@ -100,7 +97,7 @@ def initial_states_offpath(names=("quad_A", "quad_B", "quad_C", "quad_D"), offse
     X = {}
     for n in names:
         cx, cy = CENTERS[n]
-        path = P.lifted_circle(n, cx, cy, R=R)
+        path = P.lifted_circle(n, cx, cy, R=R, z_amp=Z_AMP, z_omega=Z_OMEGA, z0=Z0)
         pos = path.sig(Q0[n], 0).copy()
         radial = np.array([pos[0] - cx, pos[1] - cy, 0.0])
         radial = radial / np.linalg.norm(radial)

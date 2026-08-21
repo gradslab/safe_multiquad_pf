@@ -1,10 +1,10 @@
 r"""
-Render the ACTUAL Drake scene for the V2 controller: Skydio-2 quadrotor meshes + color-coded path
+Render the actual Drake scene for the paper's controllers: Skydio-2 quadrotor meshes + color-coded path
 spheres, drawn offscreen by Drake's VTK render engine through an RGBD camera, saved as a GIF. This is
 Drake drawing the quadrotors on the physics engine, not a replot of logged data.
 
-Same V2System controller as run_circles.py (closed-form V2 QP); physical parameters from dynamics.Model
-(plant == controller model). Path spheres follow the V2 nonplanar lifted circles.
+Same controller stack as run_circles.py; physical parameters from dynamics.Model (plant ==
+controller model). Path spheres trace the assigned nonplanar paths.
 
 Usage: python3 v2/experiments/nominal/drake_render.py --tmax 25 --fps 15
 """
@@ -85,7 +85,7 @@ def main():
     ap.add_argument("--onpath", action="store_true", help="start on the path (no convergence shown)")
     ap.add_argument("--agents", type=int, default=4, choices=(2, 3, 4))
     ap.add_argument("--scenario", choices=("circles", "sine", "three"), default="circles")
-    ap.add_argument("--P", type=float, default=100.0, help="MINNORM slack weight")
+    ap.add_argument("--P", type=float, default=100.0, help="slack weight P")
     ap.add_argument("--vmax", type=float, default=1.0)
     ap.add_argument("--lam-v", type=float, default=20.0)
     ap.add_argument("--controller", choices=("proposed","baseline","se3"), default="proposed")
@@ -127,7 +127,7 @@ def main():
         cfgs = ssc.make_configs(names=names_sel, lam_pair=args.lam_pair, lam_att=args.lam_att,
                                 w_mode=args.w_mode, b_far=8.0, w_lead=args.w_lead)
         # 1 m off-path start so convergence is visible (offset in y ~= 1 m path distance for the gentle sine)
-        X0 = ssc.initial_states(names=names_sel, offset_y=(0.0 if args.onpath else 1.0),
+        X0 = ssc.initial_states(names=names_sel, offset_y=(0.0 if args.onpath else 0.5),
                                 offset_z=(0.0 if args.onpath else -0.3))
     elif args.scenario == "three":
         import scenario_three as s3
@@ -154,7 +154,12 @@ def main():
     # Keep the rendered drone SMALLER than d_s so a d_s-separation does not look like a collision.
     # Skydio mesh: scale 0.0027 -> ~0.43 m; scale 0.0019 -> ~0.30 m (< d_s=0.5 m, clear gap at closest approach).
     qscale = args.qscale
-    pcurve = dict(qrange=(0, max(16, 2 * np.pi / getattr(ssc, "W_SINE", 0.5))), n=320, r=args.pr) if sine else dict()
+    if sine:
+        _x0 = min(ssc.X0_START.values()) - 0.5
+        _x1 = max(ssc.X0_START.values()) + max(abs(v) for v in ssc.V_DES.values()) * args.tmax + 1.5
+        pcurve = dict(qrange=(_x0, _x1), n=420, r=args.pr)
+    else:
+        pcurve = dict()
     indices = []
     for c in cfgs:
         b = plant.AddRigidBody(c.name, inertia)

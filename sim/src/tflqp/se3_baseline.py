@@ -52,25 +52,14 @@ def reference(cfg, t):
     """Time-parameterised reference on the SAME geometric path, at the SAME physical speed.
     x_d(t) = sigma(q(t)) with arc length advancing at v_des, so |x_d'| = |v_des| exactly."""
     p = cfg.path
-    q = cfg.q0
-    # advance arc length by v_des*t, invert the arc-length map by Newton on a(q) = s
-    target = cfg.v_des * t
-    for _ in range(60):
-        err = p.arclen(q, cfg.q0) - target
-        sp = np.linalg.norm(p.sig(q, 1))
-        if abs(err) < 1e-12 or sp < 1e-9:
-            break
-        q -= err / sp
+    # PAPER CONVENTION (fairness): the PATH COORDINATE advances at v_des, exactly the along-path
+    # speed the other two controllers regulate (rad/s on circles, x-rate on the sinusoids).
+    q = cfg.q0 + cfg.v_des * t
     if getattr(p, "closed", False) and p.period:
         q = q % p.period
-    s1 = p.sig(q, 1); s2 = p.sig(q, 2)
-    sp = np.linalg.norm(s1)
-    T = s1 / max(sp, 1e-9)                       # unit tangent
     xd = p.sig(q, 0)
-    vd = cfg.v_des * T
-    # d/dt of the unit tangent at constant arc-length speed: curvature term
-    dT_dq = (s2 - T * (T @ s2)) / max(sp, 1e-9)
-    ad = cfg.v_des ** 2 * dT_dq / max(sp, 1e-9)
+    vd = p.sig(q, 1) * cfg.v_des
+    ad = p.sig(q, 2) * cfg.v_des ** 2
     return xd, vd, ad, q
 
 

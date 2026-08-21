@@ -64,13 +64,14 @@ def assemble(x, path, model, gains, v_des, psi_des, q_init):
     zeta = np.array([s_val[1], Lf_a2[0], Lf_a2[1], Lf_a2[2]])
     L4_a2 = Lf_a2[3]
 
-    # ---- phase channel beta1 = theta (projected arc length) ----
-    dth, D2th, D3th, D4th = path.phase_derivs(y, qs)
+    # ---- phase channel beta1 = path coordinate (paper Sec. II-C: nearest-point coordinate;
+    #      circles use the explicit atan2 chart of Sec. VI) ----
+    dth, D2th, D3th, D4th = path.beta1_derivs(y, qs)
     b1_t = (dth, D2th, D3th, D4th)
     Lf_b1 = lie_chain(b1_t, V)
-    eta = np.array([0.0, Lf_b1[0], Lf_b1[1], Lf_b1[2]])      # eta1 unused (chart dep.); eta2..4
+    eta = np.array([path.beta1_val(y, qs), Lf_b1[0], Lf_b1[1], Lf_b1[2]])
     L4_b1 = Lf_b1[3]
-    eta2 = Lf_b1[0]                                          # = dtheta . v_q = physical speed (Lemma 2)
+    eta2 = Lf_b1[0]                       # = dbeta1 . v_q = path-coordinate rate (rad/s on circles)
 
     # ---- heading channel beta2 = psi ----
     psi = x[2]
