@@ -31,7 +31,7 @@ import scenario_sine as sine
 
 COLORS = {"quad_A": "#4477AA", "quad_B": "#EE6677", "quad_C": "#228833", "quad_D": "#CCBB44"}
 STYLE = {"proposed": ("-", 1.4), "baseline": ("--", 1.0), "se3": (":", 1.2)}
-LABEL = {"proposed": "proposed", "baseline": "TFL [17] + filter", "se3": "SE(3) [25] + filter"}
+LABEL = {"proposed": "proposed", "baseline": "TFL [17] + filter", "se3": "SE(3) [27] + filter"}
 DS = 0.5
 
 plt.rcParams.update({"font.size": 8, "axes.labelsize": 8, "axes.titlesize": 8,
