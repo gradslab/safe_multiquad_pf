@@ -25,6 +25,7 @@ window.MathJax = {tex:{inlineMath:[["\\(","\\)"]]}, svg:{fontCache:"global"}};
     <a href="#comparison">Comparison</a>
     <a href="#parameters">Parameters</a>
     <a href="#reproduce">Reproduce</a>
+    <a href="https://github.com/gradslab/safe_multiquad_pf">GitHub</a>
   </nav>
   <button id="theme" class="btn" type="button" aria-label="Switch colour theme">Theme</button>
 </header>
@@ -53,7 +54,7 @@ window.MathJax = {tex:{inlineMath:[["\\(","\\)"]]}, svg:{fontCache:"global"}};
       animations behind the paper's figures, the full three-controller comparison, and everything
       needed to reproduce them.</p>
     <div class="buttons">
-      <a class="btn primary" href="https://github.com/gradslab/safe_multiquad_pf">Code and data</a>
+      <a class="btn primary" href="https://github.com/gradslab/safe_multiquad_pf">GitHub: code and data</a>
       <a class="btn" href="#comparison">Comparison</a>
       <a class="btn" href="#reproduce">Reproduce the figures</a>
     </div>
@@ -191,10 +192,18 @@ window.MathJax = {tex:{inlineMath:[["\\(","\\)"]]}, svg:{fontCache:"global"}};
     <div class="sec-head">
       <span class="sec-tag">Reproduce</span>
       <h2>Reproducing this</h2>
-      <p>The simulation code is in the repository under <code>sim/</code>. The verification gates
+      <p>Everything in the paper and on this page comes out of the
+      <a href="https://github.com/gradslab/safe_multiquad_pf">GitHub repository</a>, from the
+      simulation code under <code>sim/</code>. The verification gates
       run first: they check the controller algebra over thousands of random states, validate the
       phase layer against finite differences, and cross-check the closed-form solve against a
-      numerical QP and the assembled dynamics against direct symbolic differentiation.</p>
+      numerical QP and the assembled dynamics against direct symbolic differentiation. The six
+      rollouts then write the state logs, the analysis script computes every number quoted in
+      Section&nbsp;V of the paper, <code>fig_paper_suite.py</code> regenerates the paper's
+      Figs.&nbsp;2 and&nbsp;3 together with the plots on this page, and
+      <code>drake_render.py</code> renders the animations above. One command,
+      <code>bash&nbsp;reproduce.sh</code>, runs the install, the gates, the rollouts, the
+      metrics, and the figures end to end.</p>
     </div>
 <pre><code><span class="c"># set up</span>
 git clone https://github.com/gradslab/safe_multiquad_pf.git

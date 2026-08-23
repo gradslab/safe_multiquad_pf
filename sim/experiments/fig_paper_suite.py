@@ -31,7 +31,7 @@ import scenario_sine as sine
 
 COLORS = {"quad_A": "#4477AA", "quad_B": "#EE6677", "quad_C": "#228833", "quad_D": "#CCBB44"}
 STYLE = {"proposed": ("-", 1.4), "baseline": ("--", 1.0), "se3": (":", 1.2)}
-LABEL = {"proposed": "proposed", "baseline": "TFL [17] + filter", "se3": "SE(3) [27] + filter"}
+LABEL = {"proposed": "proposed", "baseline": "TFL [17] + filter", "se3": "SE(3) [28] + filter"}
 DS = 0.5
 
 plt.rcParams.update({"font.size": 8, "axes.labelsize": 8, "axes.titlesize": 8,
@@ -98,9 +98,12 @@ def traj_figure(scenario, N, tag, out, layout, top_xlim=None):
     runs = {c: r for c, r in runs.items() if r is not None}
     names = runs["proposed"]["names"]
     if layout == "lr":
-        fig = plt.figure(figsize=(7.0, 2.4))
-        ax3 = fig.add_subplot(1, 2, 1, projection="3d")
-        ax2 = fig.add_subplot(1, 2, 2)
+        fig = plt.figure(figsize=(7.6, 2.4))
+        # tight top-view limits leave spare width; give it to the 3D panel
+        wr = [1.0, 1.0] if top_xlim is not None else [1.55, 1.0]
+        gs = fig.add_gridspec(1, 2, width_ratios=wr)
+        ax3 = fig.add_subplot(gs[0], projection="3d")
+        ax2 = fig.add_subplot(gs[1])
     else:
         fig = plt.figure(figsize=(3.6, 5.4))
         ax3 = fig.add_subplot(2, 1, 1, projection="3d")
@@ -122,7 +125,7 @@ def traj_figure(scenario, N, tag, out, layout, top_xlim=None):
     ax3.tick_params(pad=-2)
     ax3.view_init(elev=28, azim=-60)
     try:
-        ax3.set_box_aspect(None, zoom=1.2)
+        ax3.set_box_aspect(None, zoom=1.45)
     except TypeError:
         pass
     ax2.set_xlabel("x [m]"); ax2.set_ylabel("y [m]")
@@ -131,13 +134,16 @@ def traj_figure(scenario, N, tag, out, layout, top_xlim=None):
         ax2.set_ylim(-6.2, 6.2)
         ax2.set_aspect("equal", adjustable="box")
     else:
-        ax2.set_aspect("equal", adjustable="datalim")
+        b, pad = ax2.dataLim, 0.3
+        ax2.set_xlim(b.x0 - pad, b.x1 + pad)
+        ax2.set_ylim(b.y0 - pad, b.y1 + pad)
+        ax2.set_aspect("equal", adjustable="box")
     handles = [Line2D([0], [0], color="k", ls=STYLE[c][0], lw=1.8, label=LABEL[c])
                for c in runs] + [Line2D([0], [0], color="0.55", ls=(0, (1, 1.2)), lw=1.0, label="paths")]
-    fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.09),
+    fig.legend(handles=handles, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.13),
                frameon=False, handlelength=1.7, columnspacing=1.2)
-    fig.tight_layout(pad=0.4, rect=(0, 0, 1, 0.97))
-    fig.subplots_adjust(wspace=0.30)   # keep the 3D z-label clear of the top view's y-label
+    fig.tight_layout(pad=0.2, rect=(0, 0, 1, 0.97))
+    fig.subplots_adjust(wspace=0.02 if top_xlim is None else 0.30)  # sine's wide top view needs the gap for the labels
     fig.savefig(out, format="eps", bbox_inches="tight")
     fig.savefig(out.replace(".eps", ".png"), dpi=250, bbox_inches="tight")
     plt.close(fig)
