@@ -19,7 +19,7 @@ for c in "" "--controller baseline" "--controller se3"; do
   python3 experiments/run_circles.py --scenario circles --agents 4 --offpath \
           --tmax 45 --rate 400 --lam-pair 3.75 --tag _paper $c
   python3 experiments/run_circles.py --scenario sine --agents 2 --offpath \
-          --tmax 30 --rate 400 --ds 0.8 --tag _paper $c
+          --tmax 40 --rate 400 --ds 0.8 --tag _paper $c
 done
 
 echo "== 4/4 metrics and figures =="
